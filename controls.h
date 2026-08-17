@@ -1,15 +1,21 @@
+#ifndef CONTROLS_H
+#define CONTROLS_H
+
+#include "disc_detect.h"
+
 typedef enum{
 	PLAY,
 	PAUSE,
 	STOP,
 	FFORW,
 	REW,
-	SKIP,
+	NEXT,
 	PREV,
 	GOTO,
 	SUBS,
 	LANG
 } function;
 
-function get_current_function();
+void player_control(libvlc_media_player_t* player, function input, media_type current_media_type);
 
+#endif
