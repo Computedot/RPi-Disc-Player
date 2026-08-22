@@ -31,5 +31,5 @@ media_type get_media_type(int odd_desc, char* path_to_odd){
 				return VIDEO_DVD;
 				}      
 	    printf("UNKNOWN DISC MEDIA TYPE\n");
-			return UNKNOWN;
+			return NO_MEDIA;
 }

@@ -11,26 +11,35 @@
 #include "controls.h"
 #include "disc_detect.h"
 
-function input; 															//User input for controlling the player
+function input; 									//User input for controlling the player
 media_type current_media_type = NO_MEDIA;
 int current_tray_status;
 int old_tray_status = CDS_NO_DISC;
-int odd_desc; 														//The optical drive file descriptor
-bool media_playing = false; 						//Signals whether a VLC instance has been created
+int odd_desc; 										//The optical drive file descriptor
+bool media_playing = false; 						//Signals if playable media has been loaded
 char path_to_odd[] = ("/dev/sr0");
 
 libvlc_instance_t* inst;
 libvlc_media_t* media;
+libvlc_media_list_t* media_list;
+libvlc_media_list_player_t* media_list_player;
 libvlc_media_player_t* player;
 
+void initialize_player(){
+
+}
+
 int main(){
-	odd_desc = open("/dev/sr0", O_RDONLY | O_NONBLOCK);
+	inst = libvlc_new(0, NULL);
+	media_list_player = libvlc_media_list_player_new(inst);
+	media_list = libvlc_media_list_new(inst);
+	libvlc_media_list_player_set_media_list(media_list_player, media_list);
+
 	if(odd_desc==-1) return 100;
 
 	//Initializing ncurses
 	initscr();
 	cbreak();
-	noecho();
 	nodelay(stdscr, TRUE);
 	keypad(stdscr, TRUE);
 	printw("HELLO WORLD\n");
@@ -43,6 +52,7 @@ int main(){
 		 * If media is playing during a tray status change, then it is released
 		 * and the player is stopped
 		 */
+		odd_desc = open("/dev/sr0", O_RDONLY | O_NONBLOCK);
 		current_tray_status=ioctl(odd_desc, CDROM_DRIVE_STATUS);
 		if(current_tray_status!=old_tray_status){
 			old_tray_status = current_tray_status;
@@ -50,7 +60,6 @@ int main(){
 			if(media_playing){
 				libvlc_media_player_stop(player);
 				libvlc_media_player_release(player);
-				libvlc_release(inst);
 				media_playing = false;
 			}
 			/* If a disc is detected, then the program attempts to recognise
@@ -58,30 +67,41 @@ int main(){
 			 * function, found in disc_detect.c
 			 */
 			switch(current_tray_status){
-				case CDS_NO_DISC:		printf("Please Insert a Disc\n"); break;
-				case CDS_TRAY_OPEN:		printf("Tray Is Open\n"); break;
+				case CDS_NO_DISC:			printf("Please Insert a Disc\n"); break;
+				case CDS_TRAY_OPEN:			printf("Tray Is Open\n"); break;
 				case CDS_DRIVE_NOT_READY:	printf("Loading\n"); break;
-				case CDS_DISC_OK:		current_media_type = get_media_type(odd_desc, path_to_odd); break;
+				case CDS_DISC_OK:			current_media_type = get_media_type(odd_desc, path_to_odd); break;
 			}
+			close(odd_desc);
+			sleep(2);
 			refresh();
+			/* If the media type is truly an Audio CD or Video DVD, then load the
+			 * media to the media list player;
+			 */
+			switch(current_media_type){
+				case AUDIO_CD:	media = libvlc_media_new_location(inst, "cdda:///dev/sr0");
+								media_playing = true;
+								break;
+				case VIDEO_DVD: media = libvlc_media_new_location(inst, "dvdsimple:///dev/sr0");
+								media_playing = true;
+								break;
+				case NO_MEDIA: 	media_playing = false;
+								break;
+				default: 		return 101;
+			}
+			if(media_playing){
+				libvlc_media_parse_with_options(media, libvlc_media_parse_local || libvlc_media_fetch_local, 5);
+				libvlc_media_list_add_media(media_list, media);
+			}
 		}
-		/* If the inserted media is recognised, a VLC instance and player is created
-		 * and user input is read. If no input has been given, the program continues normally.
-		 * Else, the input is sent to the player_control() function, found in controls.c
-		 */
-		if(current_media_type==AUDIO_CD | current_media_type==VIDEO_DVD){
-			media_playing = true;
-      inst = libvlc_new(0, NULL);
-      if(current_media_type == AUDIO_CD)
-      	media = libvlc_media_new_location(inst, "cdda:///dev/sr0");
-      else if(current_media_type == VIDEO_DVD)
-        media = libvlc_media_new_location(inst, "dvdnav:///dev/sr0");
-      else
-      	return 101;
-      player = libvlc_media_player_new_from_media(media);
+	/* If media is playing, then the program reads a user input to perform
+	 * an action (like pause, skip, etc...). If no user input is detected,
+	 * then the program proceeds normally.
+	 */
+	if(media_playing){	
 		  input = getch();
 			if(input!=ERR)
-				player_control(player, input, current_media_type);
+				player_control(media_list_player, input, current_media_type);
 			refresh();
 		}
 		sleep(1);
