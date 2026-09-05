@@ -24,7 +24,7 @@ void initialize_player(media_type current_media_type){
     inst = libvlc_new(0, NULL);
     switch(current_media_type){
         case AUDIO_CD:	media = libvlc_media_new_location(inst, "cdda:///dev/sr0"); break;
-        case VIDEO_DVD: media = libvlc_media_new_location(inst, "dvdsimple:///dev/sr0"); break;
+        case VIDEO_DVD: media = libvlc_media_new_location(inst, "dvdnav:///dev/sr0"); break;
     }
     media_list_player = libvlc_media_list_player_new(inst);
     media_list = libvlc_media_list_new(inst);

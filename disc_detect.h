@@ -4,7 +4,6 @@
 typedef enum {
     AUDIO_CD,
     VIDEO_DVD,
-    MEDIA_DISC,
     UNKNOWN,
     NO_MEDIA
 } media_type;
