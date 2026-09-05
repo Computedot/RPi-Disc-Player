@@ -8,5 +8,6 @@
 
 WINDOW* create_win();
 void destroy_win(WINDOW* window);
+void clean_win(WINDOW* window);
 
 #endif

@@ -25,15 +25,14 @@ bool playable_media = false;
 
 
 int main(){
-	int i =0;
+	initscr();
+	cbreak();
+	curs_set(0);
+	noecho();
 	WINDOW* parent_win;
 	WINDOW* child_win;
 	int parent_pid = getpid();
 	int child_pid = -10;
-
-	//Initializing ncurses
-
-
 
 	while(true){
 		/*
@@ -51,13 +50,15 @@ int main(){
 		 * getting the current media type if a disc is detected.
 		 */
 		if(getpid()==parent_pid){
-			parent_win = create_win();
 			odd_desc = open("/dev/sr0", O_RDONLY | O_NONBLOCK);
-			if(odd_desc==-1) return 100;
+			if(odd_desc==-1)
+				return 100;
 			current_tray_status=ioctl(odd_desc, CDROM_DRIVE_STATUS);
 			if(current_tray_status!=old_tray_status){
+				parent_win = create_win();
 				old_tray_status = current_tray_status;
 				current_media_type = NO_MEDIA;
+				playable_media = false;
 			   /*
 				* If a disc is detected, then the program attempts to recognise
 				* the media type (Audio CD or Video DVD) using the current_media_type
@@ -67,21 +68,24 @@ int main(){
 					case CDS_NO_DISC:			wprintw(parent_win, "Please Insert a Disc\n"); break;
 					case CDS_TRAY_OPEN:			wprintw(parent_win, "Tray Is Open\n"); break;
 					case CDS_DRIVE_NOT_READY:	wprintw(parent_win, "Loading\n"); break;
-					case CDS_DISC_OK:			current_media_type = get_media_type(odd_desc, path_to_odd); break;
-				}
-				switch(current_media_type){
-					case AUDIO_CD:	wprintw(parent_win, "AUDIO CD");
-									playable_media = true;
-									break;
-					case VIDEO_DVD:	wprintw(parent_win, "VIDEO DVD");
-									playable_media = true;
-									break;
-					default:		wprintw(parent_win, "UNKNOWN MEDIA");
-									playable_media = false;
+					case CDS_DISC_OK:
+						current_media_type = get_media_type(odd_desc, path_to_odd);
+						switch(current_media_type){
+							case AUDIO_CD:	wprintw(parent_win, "AUDIO CD");
+											playable_media = true;
+											break;
+							case VIDEO_DVD:	wprintw(parent_win, "VIDEO DVD");
+											playable_media = true;
+											break;
+							default:		wprintw(parent_win, "UNKNOWN MEDIA");
+											playable_media = false;
+						}
 				}
 				wrefresh(parent_win);
-				sleep(1);
+				sleep(2);
+				destroy_win(parent_win);
 			}
+			close(odd_desc);
 			/*
 			 * If playable media has been detected, then the child process is created, which controls the media player.
 			 * The child's first task is to initialize the player.
@@ -90,14 +94,13 @@ int main(){
 			 * b) The user manually stops the player.
 			 */
 			if(playable_media){
-				destroy_win(parent_win);
+				usleep(3000);
 				child_pid = fork();
 				if(child_pid==0){
 					initialize_player(current_media_type);
 					child_win = create_win();
 				}
 				else{
-					close(odd_desc);
 					do{
 						sleep(1);
 						waitpid(child_pid, &child_status, 0);
@@ -121,14 +124,14 @@ int main(){
 			if(current_tray_status!=old_tray_status)
 				destroy_player(child_win);
 			else{
-				usleep(300);
+				usleep(3000);
 				input = wgetch(child_win);
 				if(input!=ERR)
 					player_control(current_media_type, input, child_win);
 				wrefresh(child_win);
 			}
 		}
-		sleep(1);
+		usleep(100);
 	}
 	endwin();
 }

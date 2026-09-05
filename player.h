@@ -16,17 +16,12 @@ typedef enum{
 	LANG 	= '0'
 } function;
 
-/*
- * The child's first task is to initialize the player.
- */
 void initialize_player(media_type current_media_type);
 
-/*
- * Translates the user's input to player controls.
- * \param input the user's input which corresponds to a certain player function
- */
 void player_control(media_type current_media_type, function input, WINDOW* child_win);
 
 void destroy_player(WINDOW* child_win);
+
+void print_pressed_button(const char* pressed_button, WINDOW* child_win);
 
 #endif
