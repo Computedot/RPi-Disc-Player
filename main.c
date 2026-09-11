@@ -102,7 +102,7 @@ int main(){
 				}
 				else{
 					do{
-						sleep(1);
+						usleep(1000);
 						waitpid(child_pid, &child_status, 0);
 					}
 					while(!WIFEXITED(child_status));
@@ -124,14 +124,17 @@ int main(){
 			if(current_tray_status!=old_tray_status)
 				destroy_player(child_win);
 			else{
-				usleep(3000);
+				usleep(1000);
 				input = wgetch(child_win);
 				if(input!=ERR)
-					player_control(current_media_type, input, child_win);
+					switch(current_media_type){
+						case AUDIO_CD:	cd_player_control(input, child_win);	break;
+						case VIDEO_DVD:	dvd_player_control(input, child_win);	break;
+					}
 				wrefresh(child_win);
 			}
 		}
-		usleep(100);
+		usleep(1000);
 	}
 	endwin();
 }
