@@ -14,127 +14,125 @@
 #include "disc_detect.h"
 #include "window.h"
 
-function input; 									//User input for controlling the player
-media_type current_media_type = NO_MEDIA;
-int child_status;
-int current_tray_status;
-int old_tray_status = CDS_NO_DISC;
-int odd_desc; 										//The optical drive file descriptor
-char path_to_odd[] = ("/dev/sr0");
-bool playable_media = false;
-
+const char path_to_odd[] = ("/dev/sr0");
 
 int main(){
+	//Initializing ncurses
 	initscr();
 	cbreak();
 	curs_set(0);
 	noecho();
+
+	//Declaring variables
 	WINDOW* parent_win;
 	WINDOW* child_win;
-	int parent_pid = getpid();
-	int child_pid = -10;
+	function input;
+	media_type current_media_type;
+	bool playable_media;
+	int old_tray_status;
+	int current_tray_status;
+	int child_pid;
+	int child_status;
+	int odd_desc;
+
+	child_pid = -10;
 
 	while(true){
-		/*
-		 * The parent process only runs if playable_media is set to false, which happens when
-		 * a) No media is inserted, or
-		 * b) Non-playable media has been inserted, or
-		 * c) The child process has detected a tray status change (which happens when the eject button is pressed), or
-		 * d) The user has manually stopped the player.
-		 *
-		 * This cycle is repeated every seconduntil the system detects playable media, and switches to the child process,
-		 * controlling the player. In each loop, a signal is sent to the child process to see if it exists, and kill if it
-		 * does exist.
-		 *
-		 * The parent is in charge of checking the tray status and printing the corresponding message, as well as
-		 * getting the current media type if a disc is detected.
-		 */
-		if(getpid()==parent_pid){
-			odd_desc = open("/dev/sr0", O_RDONLY | O_NONBLOCK);
-			if(odd_desc==-1)
-				return 100;
-			current_tray_status=ioctl(odd_desc, CDROM_DRIVE_STATUS);
-			if(current_tray_status!=old_tray_status){
-				parent_win = create_win();
-				old_tray_status = current_tray_status;
-				current_media_type = NO_MEDIA;
-				playable_media = false;
-			   /*
-				* If a disc is detected, then the program attempts to recognise
-				* the media type (Audio CD or Video DVD) using the current_media_type
-				* function, found in disc_detect.c
-				*/
-				switch(current_tray_status){
-					case CDS_NO_DISC:			wprintw(parent_win, "Please Insert a Disc\n"); break;
-					case CDS_TRAY_OPEN:			wprintw(parent_win, "Tray Is Open\n"); break;
-					case CDS_DRIVE_NOT_READY:	wprintw(parent_win, "Loading\n"); break;
-					case CDS_DISC_OK:
-						current_media_type = get_media_type(odd_desc, path_to_odd);
-						switch(current_media_type){
-							case AUDIO_CD:	wprintw(parent_win, "AUDIO CD");
-											playable_media = true;
-											break;
-							case VIDEO_DVD:	wprintw(parent_win, "VIDEO DVD");
-											playable_media = true;
-											break;
-							default:		wprintw(parent_win, "UNKNOWN MEDIA");
-											playable_media = false;
-						}
-				}
-				wrefresh(parent_win);
-				sleep(2);
-				destroy_win(parent_win);
-			}
-			close(odd_desc);
+		if(child_pid!=0){
+			playable_media 		= false;
+			current_media_type	= NO_MEDIA;
+			odd_desc			= open("/dev/sr0", O_RDONLY | O_NONBLOCK);
+			parent_win			= create_win();
+			current_tray_status	= ioctl(odd_desc, CDROM_DRIVE_STATUS);
+			old_tray_status		= current_tray_status;
+
 			/*
-			 * If playable media has been detected, then the child process is created, which controls the media player.
-			 * The child's first task is to initialize the player.
-			 * The child process is destroyed if:
-			 * a) The drive/disc status changes, or
-			 * b) The user manually stops the player.
-			 */
+			* If a disc is detected, then the program attempts to recognise
+			* the media type (Audio CD or Video DVD) using the current_media_type
+			* function, found in disc_detect.c
+			*/
+			switch(current_tray_status){
+				case CDS_NO_DISC:			wprintw(parent_win, "Please Insert a Disc\n"); break;
+				case CDS_TRAY_OPEN:			wprintw(parent_win, "Tray Is Open\n"); break;
+				case CDS_DRIVE_NOT_READY:	wprintw(parent_win, "Loading\n"); break;
+				case CDS_DISC_OK:
+					current_media_type = get_media_type(odd_desc);
+					switch(current_media_type){
+						case AUDIO_CD:	wprintw(parent_win, "AUDIO CD\n");
+										playable_media = true;
+										break;
+						case VIDEO_DVD:	wprintw(parent_win, "VIDEO DVD\n");
+										playable_media = true;
+										break;
+						default:		wprintw(parent_win, "UNKNOWN MEDIA/NO MEDIA\n");
+										playable_media = false;
+					}
+			}
+			wrefresh(parent_win);
+			sleep(2);
+			destroy_win(parent_win);
+
+			/*
+			* If playable media has been detected, then the child process is created, which controls the media player,
+			* while the parent is waiting for the child to finish.
+			* Else, no child is created and the program checks for changes to the drive every second.
+			* When finally a change is detected, the program exits and is restarted, after having unmounted
+			* and remounted the disc drive.
+			*/
 			if(playable_media){
-				usleep(3000);
+				close(odd_desc);
 				child_pid = fork();
-				if(child_pid==0){
-					initialize_player(current_media_type);
-					child_win = create_win();
-				}
-				else{
+				usleep(1000);
+				if(child_pid!=0){
 					do{
-						usleep(1000);
 						waitpid(child_pid, &child_status, 0);
+						sleep(1);
 					}
 					while(!WIFEXITED(child_status));
 				}
+				else{
+					child_win = create_win();
+					initialize_player(current_media_type);
+					usleep(1000);
+				}
+			}
+			else{
+				do{
+					current_tray_status=ioctl(odd_desc, CDROM_DRIVE_STATUS);
+					sleep(1);
+				}
+				while(current_tray_status==old_tray_status);
+				close(odd_desc);
 			}
 		}
 
-	   /*
-		* If the current media type is playable, then the child process checks for disc tray status changes.
+		/*
+		* The child's first task is to initialize the player.
+		* The child process is destroyed if:
+		* a) The drive/disc status changes, or
+		* b) The user manually stops the player.
+		* Before reading user input, the child checks for disc tray status changes
 		* If no changes have been detected, it reads a user input to perform
-		* an action (like pause, skip, etc...). If no user input is detected,
-		* then the program proceeds normally. The playable_media media flag is used to determine whether or not to
-		* return to the parent, and kill the child process.
+		* an action (like pause, skip, etc...).
 		*/
-		if(playable_media && child_pid==0){
+		if(child_pid==0){
 			odd_desc = open("/dev/sr0", O_RDONLY | O_NONBLOCK);
-			current_tray_status=ioctl(odd_desc, CDROM_DRIVE_STATUS);
+			current_tray_status = ioctl(odd_desc, CDROM_DRIVE_STATUS);
 			close(odd_desc);
-			if(current_tray_status!=old_tray_status)
+			if(current_tray_status!=CDS_DISC_OK)
 				destroy_player(child_win);
 			else{
 				usleep(1000);
 				input = wgetch(child_win);
-				if(input!=ERR)
+				if(input!=ERR){
 					switch(current_media_type){
 						case AUDIO_CD:	cd_player_control(input, child_win);	break;
 						case VIDEO_DVD:	dvd_player_control(input, child_win);	break;
 					}
-				wrefresh(child_win);
+				}
 			}
+			usleep(10000);
 		}
-		usleep(1000);
 	}
 	endwin();
 }

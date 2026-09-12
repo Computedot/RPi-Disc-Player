@@ -25,7 +25,12 @@ typedef enum{
 	GET_R_TIME = 'B'
 } function;
 
-void initialize_player(media_type current_media_type);
+/*
+ * If the creation of the new LibVLC instance was successful, then 0 is returned.
+ * Else, 1 is returned. This is mostly used by the get_media_type() function, to try
+ * and determine if the disc type is a Video DVD or not.
+ */
+int initialize_player(media_type current_media_type);
 
 void cd_player_control(function input, WINDOW* child_win);
 

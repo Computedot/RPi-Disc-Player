@@ -8,6 +8,6 @@ typedef enum {
     NO_MEDIA
 } media_type;
 
-media_type get_media_type(int odd_desc, char* path_to_odd);
+media_type get_media_type(int odd_desc);
 
 #endif 
