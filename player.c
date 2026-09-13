@@ -20,11 +20,11 @@ function previous_function = STOP;
 const char* vlc_args[] = {"--quiet", "--verbose=-1", "--no-keyboard-events", "--no-mouse-events"};
 const int vlc_args_size = 4;
 
-int initialize_player(media_type current_media_type){
+void initialize_player(media_type current_media_type){
     inst = libvlc_new(vlc_args_size, vlc_args);
-    FILE* logfile = fopen("./log.txt", "w");
+    FILE* logfile = fopen("./logs/vlc_log.txt", "w");
     libvlc_log_set_file(inst, logfile);
-    freopen("./stderr_log.txt", "w", stderr);
+    freopen("./logs/stderr_log.txt", "w", stderr);
     media_list_player = libvlc_media_list_player_new(inst);
     media_list = libvlc_media_list_new(inst);
     media_player = libvlc_media_player_new(inst);
@@ -35,15 +35,11 @@ int initialize_player(media_type current_media_type){
             libvlc_media_list_add_media(media_list, media);
             libvlc_media_list_player_set_media_list(media_list_player, media_list);
             libvlc_media_list_player_set_media_player(media_list_player, media_player);
-            return 0;
+            return;
         case VIDEO_DVD:
             media = libvlc_media_new_location(inst, "dvdnav:///dev/sr0");
-            usleep(1000);
-            if(media==NULL) return 1;
             libvlc_media_player_set_media(media_player, media);
-            return 0;
     }
-    return 1;
 }
 
 void cd_player_control(function input, WINDOW* child_win){
